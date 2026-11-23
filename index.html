@@ -710,7 +710,7 @@ function itemForm(it,preset={}){
     {pair:[{name:'date',label:'Data',type:'date',value:v.date,required:true},{name:'time',label:'Horário',type:'time',value:v.time}]},
     {name:'cat',label:'Categoria',type:'text',value:v.cat,list:cats,placeholder:'Trabalho, Faculdade…'},
     {pair:[{name:'repeat',label:'Repetir',type:'select',value:v.repeat||'none',options:Object.entries(REPEATS),showIf:['kind',['evento','atividade']]},
-           {name:'until',label:'Até (opcional)',type:'date',value:v.until,showIf:['repeat',['daily','weekly','yearly']]}]},
+           {name:'until',label:'Até (opcional)',type:'date',value:v.until,showIf:['repeat',['daily','weekly','monthly','yearly']]}]},
     {name:'notes',label:'Observações',type:'textarea',value:v.notes}
   ],onSave:o=>{
     if(o.kind==='tarefa'){o.repeat='none';o.until=''}
@@ -1142,7 +1142,7 @@ function dispatchAI(r){
   const date=isDate(d.date)?d.date:todayISO();
   const pick=(v,ok,def)=>ok.includes(v)?v:def;
   switch(r.type){
-    case 'agenda':itemForm(null,{_ai:1,title:s(d.title),kind:pick(d.kind,['evento','atividade','tarefa'],'atividade'),date,time:isTime(d.time)?d.time:'',cat:s(d.cat),repeat:pick(d.repeat,['none','daily','weekly','yearly'],'none')});break;
+    case 'agenda':itemForm(null,{_ai:1,title:s(d.title),kind:pick(d.kind,['evento','atividade','tarefa'],'atividade'),date,time:isTime(d.time)?d.time:'',cat:s(d.cat),repeat:pick(d.repeat,['none','daily','weekly','monthly','yearly'],'none')});break;
     case 'work':taskForm(null,{_ai:1,title:s(d.title),biz:pick(d.biz,['empresa','doceria'],'empresa'),prio:pick(d.prio,['alta','media','baixa'],'media'),due:isDate(d.due)?d.due:'',client:s(d.client),value:finite(d.value)});break;
     case 'shop':shopForm(null,{_ai:1,name:s(d.name),kind:pick(d.kind,['preciso','quero'],'preciso'),price:finite(d.price),cat:s(d.cat),prio:pick(d.prio,['alta','media','baixa'],'media')});break;
     case 'weight':weightForm({_ai:1,kg:finite(d.kg),date});break;
