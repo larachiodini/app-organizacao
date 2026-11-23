@@ -125,6 +125,12 @@ main{padding:20px clamp(16px,3.4vw,40px) 60px;max-width:1280px;width:100%}
 .time{font:600 12px var(--mono);width:42px;flex:none;color:var(--muted);line-height:1.3}
 .time small{display:block;font-size:11px;font-weight:500;opacity:.75}
 .chips.wd button{min-width:44px}
+.chips.sw{gap:8px;align-items:center}
+.chips.sw button{width:30px;height:30px;padding:0;border-radius:50%;display:grid;place-items:center;background:none}
+.chips.sw button:first-child{width:auto;padding:0 11px;border-radius:15px;font-size:12px}
+.chips.sw button i{width:20px;height:20px;border-radius:50%;background:var(--c)}
+.chips.sw button[aria-pressed="true"]{border-color:var(--c,var(--ink));box-shadow:0 0 0 2px var(--c,var(--ink));background:none}
+.chips.sw button:first-child[aria-pressed="true"]{color:var(--ink);box-shadow:0 0 0 2px var(--muted);border-color:var(--muted)}
 .chips .preset{font-size:12px;padding:4px 9px}
 .fld.err .chips button{border-color:var(--danger)}
 .chk{width:20px;height:20px;border-radius:6px;border:1.5px solid color-mix(in srgb,var(--c,var(--muted)) 70%,var(--line));background:none;flex:none;display:grid;place-items:center;padding:0;transition:background .15s}
@@ -570,6 +576,7 @@ function daysLabel(ds){const k=[...(ds||[])].map(Number).sort().join(',');if(k==
 const repeatLabel=it=>it.repeat==='days'?daysLabel(it.days):(REPEATS[it.repeat]||'').toLowerCase();
 function occursOn(it,d){
   if(it.date===d)return true;
+  if(it.kind==='evento'&&(!it.repeat||it.repeat==='none')&&it.dateEnd&&d>it.date&&d<=it.dateEnd)return true;
   if(it.kind==='tarefa'||!it.repeat||it.repeat==='none'||d<it.date)return false;
   if(it.until&&d>it.until)return false;
   const a=parse(it.date),b=parse(d);
@@ -580,7 +587,20 @@ function occursOn(it,d){
   if(it.repeat==='yearly')return a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
   return false;
 }
-const itemsOn=d=>S.agenda.items.filter(it=>occursOn(it,d)).sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+const COLORS=[['#4F6BFF','Azul'],['#0EA5E9','Ciano'],['#14B8A6','Verde-água'],['#22C55E','Verde'],['#EAB308','Amarelo'],['#F97316','Laranja'],['#EF4444','Vermelho'],['#EC4899','Rosa'],['#A855F7','Roxo'],['#64748B','Cinza']];
+const colorOf=it=>(it.color&&/^#[0-9a-f]{6}$/i.test(it.color))?it.color:(KINDS[it.kind]||KINDS.evento).c;
+const pausersOn=d=>S.agenda.items.filter(e=>e.kind==='evento'&&(e.pause||[]).length&&occursOn(e,d));
+function isPaused(it,ps){if(it.kind!=='atividade')return false;
+  return ps.some(e=>e.id!==it.id&&e.pause.some(p=>p==='*'||p==='id:'+it.id||(p.startsWith('cat:')&&it.cat&&norm(p.slice(4))===norm(it.cat))))}
+const itemsOn=d=>{const ps=pausersOn(d);return S.agenda.items.filter(it=>occursOn(it,d)&&!isPaused(it,ps)).sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'))};
+function pausedNote(d){const ps=pausersOn(d);if(!ps.length)return '';const n=S.agenda.items.filter(it=>occursOn(it,d)&&isPaused(it,ps)).length;
+  return n?`<p class="small muted" style="margin:10px 4px 0">⏸ ${n} ${n===1?'atividade pausada':'atividades pausadas'} por ${esc(ps.map(e=>e.title).join(', '))}</p>`:''}
+function pauseOptions(selfId){
+  const acts=S.agenda.items.filter(i=>i.kind==='atividade'&&i.id!==selfId);
+  const cats=[...new Map(acts.filter(i=>i.cat).map(i=>[norm(i.cat),i.cat])).values()];
+  const reps=acts.filter(i=>i.repeat&&i.repeat!=='none');
+  return [['*','Todas as atividades'],...cats.map(c=>['cat:'+c,'Categoria: '+c]),...reps.map(i=>['id:'+i.id,i.title+(i.time?' '+i.time:'')+' ('+repeatLabel(i)+')'])];
+}
 const pendingTasks=()=>S.agenda.items.filter(i=>i.kind==='tarefa'&&!i.done);
 
 const UI={month:null,sel:todayISO(),filter:'all',biz:'empresa',shopTab:'preciso',mealDate:todayISO(),openGoal:null};
@@ -604,12 +624,12 @@ const emptyBox=(msg,btn)=>`<div class="empty">${msg}${btn||''}</div>`;
 
 function itemRow(it,opts={}){
   const k=KINDS[it.kind]||KINDS.evento,isTask=it.kind==='tarefa';
-  return `<li class="row ${isTask&&it.done?'done':''}" style="--c:${k.c}">
+  return `<li class="row ${isTask&&it.done?'done':''}" style="--c:${colorOf(it)}">
     ${isTask?`<button class="chk" role="checkbox" aria-checked="${!!it.done}" aria-label="Concluir ${esc(it.title)}" data-act="toggle-item" data-id="${it.id}"></button>`:`<span style="width:20px;display:grid;place-items:center"><span class="node"></span></span>`}
     <span class="time">${esc(it.time||'—')}${it.timeEnd?`<small>${esc(it.timeEnd)}</small>`:''}</span>
     <div class="main clickable" data-act="edit-item" data-id="${it.id}">
       <div class="t">${esc(it.title)}</div>
-      <div class="meta"><span class="pill">${k.label}</span>${opts.showDate?`<span class="${isTask&&!it.done&&it.date<todayISO()?'late':''}">${relDate(it.date)}</span>`:''}${it.cat?`<span>${esc(it.cat)}</span>`:''}${!isTask&&it.repeat&&it.repeat!=='none'?`<span>↻ ${esc(repeatLabel(it))}</span>`:''}</div>
+      <div class="meta"><span class="pill">${k.label}</span>${opts.showDate?`<span class="${isTask&&!it.done&&it.date<todayISO()?'late':''}">${relDate(it.date)}</span>`:''}${it.dateEnd&&it.kind==='evento'?`<span>até ${shortDate(it.dateEnd)}</span>`:''}${(it.pause||[]).length?`<span>⏸ pausa ${it.pause.includes('*')?'todas as atividades':esc(it.pause.map(p=>p.startsWith('cat:')?p.slice(4):(S.agenda.items.find(x=>'id:'+x.id===p)||{}).title).filter(Boolean).join(', '))}</span>`:''}${it.cat?`<span>${esc(it.cat)}</span>`:''}${!isTask&&it.repeat&&it.repeat!=='none'?`<span>↻ ${esc(repeatLabel(it))}</span>`:''}</div>
     </div>
   </li>`;
 }
@@ -633,7 +653,7 @@ function vHoje(){
   const need=S.shop.items.filter(i=>!i.bought&&i.kind==='preciso');
   let week='';
   for(let i=0;i<7;i++){const d=addDays(t,i),its=itemsOn(d);
-    week+=`<button class="wday ${i===0?'today':''}" data-act="goto-day" data-date="${d}" aria-label="${longDate(d)}, ${its.length} itens"><span class="w">${i===0?'Hoje':DC[parse(d).getDay()]}</span><span class="d">${parse(d).getDate()}</span><span class="dots">${its.slice(0,4).map(x=>`<i style="--c:${KINDS[x.kind].c}"></i>`).join('')}</span></button>`}
+    week+=`<button class="wday ${i===0?'today':''}" data-act="goto-day" data-date="${d}" aria-label="${longDate(d)}, ${its.length} itens"><span class="w">${i===0?'Hoje':DC[parse(d).getDay()]}</span><span class="d">${parse(d).getDate()}</span><span class="dots">${its.slice(0,4).map(x=>`<i style="--c:${colorOf(x)}"></i>`).join('')}</span></button>`}
   const pendToday=today.filter(i=>i.kind==='tarefa'&&!i.done).length;
   return `
   <div class="head"><div><h1>${greet}.</h1><p>${cap(longDate(t))} — ${today.length?`${today.length} ${today.length===1?'item':'itens'} hoje${pendToday?`, ${pendToday} ${pendToday===1?'tarefa aberta':'tarefas abertas'}`:''}`:'agenda livre hoje'}${late.length?`, <span class="late">${late.length} ${late.length===1?'atrasada':'atrasadas'}</span>`:''}.</p></div></div>
@@ -647,7 +667,7 @@ function vHoje(){
   <div class="g2">
     <section class="card" style="--c:var(--agenda)">
       <div class="card-h"><span class="sq"></span><h2>Agenda de hoje</h2><div class="r"><a class="link" href="#agenda">Calendário</a></div></div>
-      ${today.length?`<ul class="list">${today.map(i=>itemRow(i)).join('')}</ul>`:emptyBox('Nada marcado para hoje.')}
+      ${today.length?`<ul class="list">${today.map(i=>itemRow(i)).join('')}</ul>`:emptyBox('Nada marcado para hoje.')}${pausedNote(t)}
       ${adder('task-today','Adicionar tarefa para hoje','var(--tarefa)')}
     </section>
     <section class="card" style="--c:var(--tarefa)">
@@ -679,9 +699,9 @@ function vAgenda(){
     const ds=iso(d),its=itemsOn(ds).filter(filt);
     cells+=`<button class="day ${d.getMonth()!==mo?'out':''} ${ds===t?'today':''}" aria-pressed="${ds===UI.sel}" data-act="sel-day" data-date="${ds}" aria-label="${longDate(ds)}, ${its.length} itens">
       <span class="n">${d.getDate()}</span>
-      ${its.slice(0,3).map(it=>`<span class="chip ${it.kind==='tarefa'&&it.done?'done':''}" style="--c:${KINDS[it.kind].c}">${it.time?esc(it.time)+' ':''}${esc(it.title)}</span>`).join('')}
+      ${its.slice(0,3).map(it=>`<span class="chip ${it.kind==='tarefa'&&it.done?'done':''}" style="--c:${colorOf(it)}">${it.time?esc(it.time)+' ':''}${esc(it.title)}</span>`).join('')}
       ${its.length>3?`<span class="more">+${its.length-3}</span>`:''}
-      <span class="dots">${its.slice(0,5).map(it=>`<i style="--c:${KINDS[it.kind].c}"></i>`).join('')}</span></button>`;
+      <span class="dots">${its.slice(0,5).map(it=>`<i style="--c:${colorOf(it)}"></i>`).join('')}</span></button>`;
   }
   const sel=itemsOn(UI.sel).filter(filt);
   return `
@@ -702,7 +722,7 @@ function vAgenda(){
     </section>
     <section class="card">
       <div class="card-h"><h2>${cap(longDate(UI.sel))}</h2><div class="r"><button class="icon" data-act="new-item" data-date="${UI.sel}" aria-label="Novo item neste dia">${I.plus.replace('<svg','<svg width="16" height="16" stroke="currentColor" fill="none" stroke-width="2.2"')}</button></div></div>
-      ${sel.length?`<ul class="list">${sel.map(i=>itemRow(i)).join('')}</ul>`:emptyBox('Nada neste dia.')}
+      ${sel.length?`<ul class="list">${sel.map(i=>itemRow(i)).join('')}</ul>`:emptyBox('Nada neste dia.')}${pausedNote(UI.sel)}
       ${adder('task-sel','Tarefa rápida neste dia','var(--tarefa)')}
       <p class="small muted" style="margin:10px 2px 0">Para evento ou atividade com horário, use <b>Novo item</b>.</p>
     </section>
@@ -715,14 +735,19 @@ function itemForm(it,preset={}){
   openForm({title:isNew?'Novo na agenda':'Editar item',hint:preset._ai?'Criado a partir do seu texto. Confira e salve.':'',c:'var(--agenda)',fields:[
     {name:'kind',label:'Tipo',type:'chips',value:v.kind,options:Object.entries(KINDS).map(([k,o])=>[k,o.label,o.c])},
     {name:'title',label:'Título',type:'text',value:v.title,required:true,placeholder:'Ex.: Aniversário da Ana, Aula de cálculo…'},
-    {name:'date',label:'Data (ou início da repetição)',type:'date',value:v.date,required:true},
+    {pair:[{name:'date',label:'Data (ou início)',type:'date',value:v.date,required:true},{name:'dateEnd',label:'Termina em (opcional)',type:'date',value:v.dateEnd,showIf:['kind',['evento']]}]},
     {pair:[{name:'time',label:'Início',type:'time',value:v.time},{name:'timeEnd',label:'Fim',type:'time',value:v.timeEnd}]},
     {name:'cat',label:'Categoria',type:'text',value:v.cat,list:cats,placeholder:'Trabalho, Faculdade…'},
     {pair:[{name:'repeat',label:'Repetir',type:'select',value:v.repeat||'none',options:Object.entries(REPEATS),showIf:['kind',['evento','atividade']]},
            {name:'until',label:'Até (opcional)',type:'date',value:v.until,showIf:['repeat',['days','daily','weekly','monthly','yearly']]}]},
     {name:'days',label:'Quais dias',type:'weekdays',value:(v.days&&v.days.length?v.days:[1,2,3,4,5]).join(','),required:true,showIf:['repeat',['days']]},
+    {name:'color',label:'Cor',type:'chips',swatch:true,value:v.color||'',options:[['','Automática'],...COLORS.map(([h,n])=>[h,n,h])]},
+    {name:'pause',label:'Pausar atividades durante este evento',type:'multi',value:(v.pause||[]).join('|'),options:pauseOptions(v.id),showIf:['kind',['evento']],hint:'Ex.: Férias pausando a categoria Trabalho. As atividades marcadas somem da agenda nos dias do evento.'},
     {name:'notes',label:'Observações',type:'textarea',value:v.notes}
   ],onSave:o=>{
+    o.pause=String(o.pause||'').split('|').filter(Boolean);
+    if(o.kind!=='evento'){o.pause=[];o.dateEnd=''}
+    if(o.dateEnd&&o.dateEnd<=o.date)o.dateEnd='';
     o.days=o.repeat==='days'?String(o.days||'').split(',').filter(Boolean).map(Number):[];
     if(o.kind==='tarefa'){o.repeat='none';o.until='';o.days=[]}
     if(isNew)S.agenda.items.push({id:uid(),done:false,...o});else Object.assign(it,o);
@@ -1003,14 +1028,16 @@ function fieldHtml(f){
   let input;
   if(f.type==='weekdays'){const sel=String(v).split(',').filter(Boolean);
     input=`<div class="chips wd" role="group" aria-label="${esc(f.label)}">${WD_SHORT.map((l,i)=>`<button type="button" data-wd="${i}" aria-pressed="${sel.includes(String(i))}" aria-label="${DIAS[i]}">${cap(l)}</button>`).join('')}</div><div class="chips" style="margin-top:6px">${[['all','Todos os dias'],['week','Seg a sex'],['weekend','Fim de semana']].map(([k,l])=>`<button type="button" class="preset" data-preset="${k}">${l}</button>`).join('')}</div><input type="hidden" id="${id}" name="${f.name}" value="${esc(v)}">`;
+  }else if(f.type==='multi'){const sel=String(v).split('|').filter(Boolean);
+    input=`<div class="chips" role="group" aria-label="${esc(f.label)}">${f.options.map(([k,l])=>`<button type="button" data-multi="${esc(k)}" aria-pressed="${sel.includes(k)}">${esc(l)}</button>`).join('')}</div>${f.hint?`<div class="small muted">${esc(f.hint)}</div>`:''}<input type="hidden" id="${id}" name="${f.name}" value="${esc(v)}">`;
   }else if(f.type==='chips'){
     const opts=[...f.options];if(f.allowOther&&v&&!opts.some(o=>o[0]===v))opts.push([v,v]);
-    input=`<div class="chips" role="radiogroup" aria-label="${esc(f.label)}">${opts.map(([k,l,c])=>`<button type="button" role="radio" data-chip="${esc(k)}" aria-pressed="${String(k)===String(v)}" style="${c?`--c:${c}`:''}">${esc(l)}</button>`).join('')}</div><input type="hidden" id="${id}" name="${f.name}" value="${esc(v)}">${f.allowOther?`<input type="text" class="other" data-other="${f.name}" placeholder="Outro…" style="margin-top:6px" list="${id}_l"><datalist id="${id}_l">${f.options.map(o=>`<option value="${esc(o[0])}">`).join('')}</datalist>`:''}`;
+    input=`<div class="chips${f.swatch?' sw':''}" role="radiogroup" aria-label="${esc(f.label)}">${opts.map(([k,l,c])=>`<button type="button" role="radio" data-chip="${esc(k)}" aria-pressed="${String(k)===String(v)}" style="${c?`--c:${c}`:''}" ${f.swatch?`title="${esc(l)}" aria-label="${esc(l)}"`:''}>${f.swatch&&k?'<i></i>':esc(l)}</button>`).join('')}</div><input type="hidden" id="${id}" name="${f.name}" value="${esc(v)}">${f.allowOther?`<input type="text" class="other" data-other="${f.name}" placeholder="Outro…" style="margin-top:6px" list="${id}_l"><datalist id="${id}_l">${f.options.map(o=>`<option value="${esc(o[0])}">`).join('')}</datalist>`:''}`;
   }else if(f.type==='select')input=`<select id="${id}" name="${f.name}">${f.options.map(([k,l])=>`<option value="${esc(k)}" ${String(k)===String(v)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
   else if(f.type==='textarea')input=`<textarea id="${id}" name="${f.name}">${esc(v)}</textarea>`;
   else{const val=f.type==='decimal'&&v!==''&&v!==null?fmt(v,2):v;
     input=`<input id="${id}" name="${f.name}" type="${f.type==='decimal'?'text':f.type}" ${f.type==='decimal'?'inputmode="decimal"':''} value="${esc(val)}" ${f.placeholder?`placeholder="${esc(f.placeholder)}"`:''} ${f.list?`list="${id}_l" autocomplete="off"`:''}>${f.list?`<datalist id="${id}_l">${f.list.map(o=>`<option value="${esc(o)}">`).join('')}</datalist>`:''}`}
-  return `<div class="fld" data-name="${f.name}" ${f.showIf?`data-show="${f.showIf[0]}:${f.showIf[1].join(',')}"`:''}><label ${f.type==='chips'||f.type==='weekdays'?'':`for="${id}"`}>${esc(f.label)}${f.required?' *':''}</label>${input}</div>`;
+  return `<div class="fld" data-name="${f.name}" ${f.showIf?`data-show="${f.showIf[0]}:${f.showIf[1].join(',')}"`:''}><label ${['chips','weekdays','multi'].includes(f.type)?'':`for="${id}"`}>${esc(f.label)}${f.required?' *':''}</label>${input}</div>`;
 }
 function openForm({title,hint,c,fields,submit='Salvar',onSave,onDelete,onInput}){
   const dlg=$('#dlg'),flat=fields.flatMap(f=>f.pair||[f]);
@@ -1040,13 +1067,16 @@ function openForm({title,hint,c,fields,submit='Salvar',onSave,onDelete,onInput})
     dlg.close();onSave(out);render();
   };
   dlg.onclick=e=>{
+    const mu=e.target.closest('[data-multi]');
+    if(mu){const fld=mu.closest('.fld'),h=$('#f_'+fld.dataset.name,dlg),set=new Set(h.value.split('|').filter(Boolean)),k=mu.dataset.multi;
+      set.has(k)?set.delete(k):set.add(k);h.value=[...set].join('|');$$('[data-multi]',fld).forEach(b=>b.setAttribute('aria-pressed',set.has(b.dataset.multi)));return}
     const wd=e.target.closest('[data-wd]'),pr=e.target.closest('[data-preset]');
     if(wd||pr){const fld=(wd||pr).closest('.fld'),h=$('#f_'+fld.dataset.name,dlg);let set=new Set(h.value.split(',').filter(Boolean));
       if(wd){const k=wd.dataset.wd;set.has(k)?set.delete(k):set.add(k)}else set=new Set({all:['0','1','2','3','4','5','6'],week:['1','2','3','4','5'],weekend:['0','6']}[pr.dataset.preset]);
       h.value=[...set].sort().join(',');$$('[data-wd]',fld).forEach(b=>b.setAttribute('aria-pressed',set.has(b.dataset.wd)));fld.classList.remove('err');return}
     const chip=e.target.closest('[data-chip]');
     if(chip){const fld=chip.closest('.fld');$$('[data-chip]',fld).forEach(b=>b.setAttribute('aria-pressed',b===chip));$('#f_'+fld.dataset.name,dlg).value=chip.dataset.chip;const o=$('.other',fld);if(o)o.value='';
-      const c2=chip.style.getPropertyValue('--c');if(fld.dataset.name==='biz'&&c2)dlg.style.setProperty('--c',c2);vis();return}
+      const c2=chip.style.getPropertyValue('--c');if((fld.dataset.name==='biz'||fld.dataset.name==='color')&&c2)dlg.style.setProperty('--c',c2);vis();return}
     if(e.target===dlg||e.target.closest('[data-close]'))dlg.close();
     else if(e.target.closest('[data-ok]'))submitFn();
     else if(e.target.closest('[data-del]')){dlg.close();onDelete()}
@@ -1133,7 +1163,7 @@ Hoje é ${longDate(t)}, ${t}. Datas relativas (amanhã, sexta, dia 5) devem vira
 Metas de dinheiro existentes: ${JSON.stringify(S.money.goals.map(g=>g.name))}.
 Responda somente com um objeto JSON, sem markdown, no formato {"type": "...", "data": {...}}.
 Tipos possíveis:
-- "agenda": {"title","kind":"evento"|"atividade"|"tarefa","date","time":"HH:MM" ou "","timeEnd":"HH:MM" ou "","cat","repeat":"none"|"days"|"daily"|"weekly"|"monthly"|"yearly","days":[números de 0 a 6, 0=domingo, só quando repeat for "days"]}. "De segunda a sexta" = repeat "days" com days [1,2,3,4,5]; "fim de semana" = [0,6]. Aniversário = evento com repeat "yearly". Aula ou compromisso fixo semanal = atividade com repeat "weekly". Algo a entregar, pagar ou lembrar = tarefa.
+- "agenda": {"title","kind":"evento"|"atividade"|"tarefa","date","dateEnd":"AAAA-MM-DD" ou "" (último dia, para eventos de vários dias como férias),"time":"HH:MM" ou "","timeEnd":"HH:MM" ou "","cat","repeat":"none"|"days"|"daily"|"weekly"|"monthly"|"yearly","days":[números de 0 a 6, 0=domingo, só quando repeat for "days"]}. "De segunda a sexta" = repeat "days" com days [1,2,3,4,5]; "fim de semana" = [0,6]. Aniversário = evento com repeat "yearly". Aula ou compromisso fixo semanal = atividade com repeat "weekly". Algo a entregar, pagar ou lembrar = tarefa.
 - "work": tarefa de trabalho {"title","biz":"empresa"|"doceria","prio":"alta"|"media"|"baixa","due":"AAAA-MM-DD" ou "","client","value":número ou null}. Encomendas de doces, bolos, brigadeiros e afins são "doceria"; demais tarefas profissionais são "empresa".
 - "shop": {"name","kind":"preciso"|"quero","price":número ou null,"cat","prio":"alta"|"media"|"baixa"}
 - "weight": {"kg":número,"date"}
@@ -1159,7 +1189,7 @@ function dispatchAI(r){
   const date=isDate(d.date)?d.date:todayISO();
   const pick=(v,ok,def)=>ok.includes(v)?v:def;
   switch(r.type){
-    case 'agenda':itemForm(null,{_ai:1,title:s(d.title),kind:pick(d.kind,['evento','atividade','tarefa'],'atividade'),date,time:isTime(d.time)?d.time:'',cat:s(d.cat),repeat:pick(d.repeat,['none','days','daily','weekly','monthly','yearly'],'none'),timeEnd:isTime(d.timeEnd)?d.timeEnd:'',days:Array.isArray(d.days)?d.days.map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=6):[]});break;
+    case 'agenda':itemForm(null,{_ai:1,title:s(d.title),kind:pick(d.kind,['evento','atividade','tarefa'],'atividade'),date,time:isTime(d.time)?d.time:'',dateEnd:isDate(d.dateEnd)?d.dateEnd:'',cat:s(d.cat),repeat:pick(d.repeat,['none','days','daily','weekly','monthly','yearly'],'none'),timeEnd:isTime(d.timeEnd)?d.timeEnd:'',days:Array.isArray(d.days)?d.days.map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=6):[]});break;
     case 'work':taskForm(null,{_ai:1,title:s(d.title),biz:pick(d.biz,['empresa','doceria'],'empresa'),prio:pick(d.prio,['alta','media','baixa'],'media'),due:isDate(d.due)?d.due:'',client:s(d.client),value:finite(d.value)});break;
     case 'shop':shopForm(null,{_ai:1,name:s(d.name),kind:pick(d.kind,['preciso','quero'],'preciso'),price:finite(d.price),cat:s(d.cat),prio:pick(d.prio,['alta','media','baixa'],'media')});break;
     case 'weight':weightForm({_ai:1,kg:finite(d.kg),date});break;
