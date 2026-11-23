@@ -560,7 +560,7 @@ window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0)});
 
 /* ===== agenda: lógica ===== */
 const KINDS={evento:{label:'Evento',c:'var(--evento)'},atividade:{label:'Atividade',c:'var(--atividade)'},tarefa:{label:'Tarefa',c:'var(--tarefa)'}};
-const REPEATS={none:'Não repete',daily:'Todo dia',weekly:'Toda semana',monthly: 'Todo mês' ,yearly:'Todo ano'};
+const REPEATS={none:'Não repete',daily:'Todo dia',weekly:'Toda semana',monthly:'Todo mês',yearly:'Todo ano'};
 function occursOn(it,d){
   if(it.date===d)return true;
   if(it.kind==='tarefa'||!it.repeat||it.repeat==='none'||d<it.date)return false;
