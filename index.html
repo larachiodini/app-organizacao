@@ -568,6 +568,7 @@ function occursOn(it,d){
   const a=parse(it.date),b=parse(d);
   if(it.repeat==='daily')return true;
   if(it.repeat==='weekly')return a.getDay()===b.getDay();
+  if(it.repeat==='montlhy'){const last=new Date(b.getFullYear(),b.getMonth()+1,0).getDate();return b.getDate()===Math.min(a.getDate(),last)};
   if(it.repeat==='yearly')return a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
   return false;
 }
