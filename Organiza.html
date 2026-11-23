@@ -457,7 +457,7 @@ window.addEventListener('hashchange',()=>{render();window.scrollTo(0,0)});
 
 /* ===== agenda: lógica ===== */
 const KINDS={evento:{label:'Evento',c:'var(--evento)'},atividade:{label:'Atividade',c:'var(--atividade)'},tarefa:{label:'Tarefa',c:'var(--tarefa)'}};
-const REPEATS={none:'Não repete',daily:'Todo dia',weekly:'Toda semana',yearly:'Todo ano'};
+const REPEATS={none:'Não repete',daily:'Todo dia',weekly:'Toda semana', monthly: 'Todo mês', yearly:'Todo ano'};
 function occursOn(it,d){
   if(it.date===d)return true;
   if(it.kind==='tarefa'||!it.repeat||it.repeat==='none'||d<it.date)return false;
@@ -771,7 +771,7 @@ function workoutForm(date,preset={}){
     {name:'type',label:'Tipo',type:'chips',value:v.type||'Musculação',options:types.slice(0,8).map(x=>[x,x]),allowOther:true},
     {pair:[{name:'date',label:'Data',type:'date',value:v.date||date,required:true},{name:'min',label:'Duração (min)',type:'decimal',value:v.min}]},
     {name:'notes',label:'Observações',type:'text',value:v.notes,placeholder:'Ex.: peito e tríceps'}
-  ],onSave:o=>{if(ex&&o.date===date)Object.assign(ex,o);else S.fitness.workouts.push({id:uid(),...o});save('fitness');toast('Treino registrado 💪')},
+  ],onSave:o=>{if(ex&&o.date===date)Object.assign(ex,o);else S.fitness.workouts.push({id:uid(),...o});save('fitness');toast('Treino registrado ')},
   onDelete:ex?()=>withUndo('fitness',()=>{S.fitness.workouts=S.fitness.workouts.filter(w=>w.id!==ex.id)},'Treino excluído'):null});
 }
 function mealForm(date,m,preset={}){
